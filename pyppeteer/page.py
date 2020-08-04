@@ -676,6 +676,10 @@ function addPageBinding(bindingName) {
         """
         return await self._networkManager.setUserAgent(userAgent)
 
+    async def setAsyncCallStackDepth(self, maxDepth: int) -> None:
+        return await self._networkManager.setAsyncCallStackDepth(maxDepth)
+    
+
     async def metrics(self) -> Dict[str, Any]:
         """Get metrics.
 
