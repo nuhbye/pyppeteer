@@ -104,6 +104,10 @@ class NetworkManager(EventEmitter):
         await self._client.send('Network.setUserAgentOverride',
                                 {'userAgent': userAgent})
 
+    async def setAsyncCallStackDepth(self, maxDepth: int) -> None:
+        await self._client.send('Debugger.enable')
+        await self._client.send('Debugger.setAsyncCallStackDepth', { 'maxDepth': maxDepth })
+
     async def setRequestInterception(self, value: bool) -> None:
         """Enable request interception."""
         self._userRequestInterceptionEnabled = value
@@ -216,6 +220,7 @@ class NetworkManager(EventEmitter):
             event.get('request', {}),
             event.get('frameId'),
             redirectChain,
+            event.get('initiator'),
         )
 
     def _onRequestServedFromCache(self, event: Dict) -> None:
@@ -244,7 +249,7 @@ class NetworkManager(EventEmitter):
                             interceptionId: Optional[str], url: str,
                             isNavigationRequest: bool, resourceType: str,
                             requestPayload: Dict, frameId: Optional[str],
-                            redirectChain: List['Request']
+                            redirectChain: List['Request'], initiator: str
                             ) -> None:
         frame = None
         if frameId and self._frameManager is not None:
@@ -253,7 +258,7 @@ class NetworkManager(EventEmitter):
         request = Request(self._client, requestId, interceptionId,
                           isNavigationRequest,
                           self._userRequestInterceptionEnabled, url,
-                          resourceType, requestPayload, frame, redirectChain)
+                          resourceType, requestPayload, frame, redirectChain, initiator)
         self._requestIdToRequest[requestId] = request
         self.emit(NetworkManager.Events.Request, request)
 
@@ -324,7 +329,7 @@ class Request(object):
                  interceptionId: Optional[str], isNavigationRequest: bool,
                  allowInterception: bool, url: str, resourceType: str,
                  payload: dict, frame: Optional[Frame],
-                 redirectChain: List['Request']
+                 redirectChain: List['Request'], initiator: str
                  ) -> None:
         self._client = client
         self._requestId = requestId
@@ -343,6 +348,7 @@ class Request(object):
         self._headers = {k.lower(): v for k, v in headers.items()}
         self._frame = frame
         self._redirectChain = redirectChain
+        self._initiator = initiator
 
         self._fromMemoryCache = False
 
@@ -412,6 +418,10 @@ class Request(object):
         ``redirectChain`` is shared between all the requests of the same chain.
         """
         return copy.copy(self._redirectChain)
+
+    @property
+    def initiator(self) -> str:
+        return copy.copy(self._initiator)
 
     def failure(self) -> Optional[Dict]:
         """Return error text.
